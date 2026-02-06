@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Audio Hero</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            /* Using your theme with a slightly darker start for better wave contrast */
+            background: linear-gradient(135deg, #4e66d6, #8fd3f4);
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .hero-header {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #waveCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .content {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            color: white;
+            pointer-events: none;
+            text-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        h1 { font-size: clamp(3rem, 10vw, 6rem); font-weight: 900; letter-spacing: 10px; }
+        p { letter-spacing: 5px; text-transform: uppercase; font-size: 0.9rem; opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+    <section class="hero-header">
+        <canvas id="waveCanvas"></canvas>
+        <div class="content">
+            <p>Signature Sound</p>
+            <h1>ULTRA-BASS</h1>
+        </div>
+    </section>
+
+    <script>
+        const canvas = document.getElementById('waveCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let mouse = { x: 0, y: 0 };
+        
+        // Configuration for "Deep" aesthetics
+        const waveLayers = [
+            { freq: 0.0015, amp: 150, speed: 0.01, baseOpacity: 0.6 },
+            { freq: 0.0025, amp: 100, speed: 0.015, baseOpacity: 0.4 },
+            { freq: 0.0040, amp: 70,  speed: 0.02, baseOpacity: 0.3 },
+            { freq: 0.0010, amp: 200, speed: 0.008, baseOpacity: 0.2 },
+            { freq: 0.0060, amp: 40,  speed: 0.03, baseOpacity: 0.5 }
+        ];
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resize);
+        window.addEventListener('mousemove', e => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Interaction Math
+            const mouseXRatio = mouse.x / width;
+            const mouseYRatio = mouse.y / height;
+
+            waveLayers.forEach((wave, i) => {
+                ctx.beginPath();
+                ctx.lineWidth = 4 - (i * 0.5); // Thicker lines for prominence
+                
+                // COLOR LOGIC: 
+                // Transitions from White to a Deep Navy based on Mouse X position
+                const r = Math.floor(255 - (mouseXRatio * 190)); // 255 -> 65
+                const g = Math.floor(255 - (mouseXRatio * 180)); // 255 -> 75
+                const b = Math.floor(255 - (mouseXRatio * 80));  // 255 -> 175
+                
+                ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${wave.baseOpacity})`;
+                
+                // Adding a slight glow that matches the current color
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
+
+                const dynamicAmp = wave.amp + (mouseYRatio * 150);
+
+                for (let x = 0; x <= width; x += 3) {
+                    const y = (height / 2) + 
+                        Math.sin(x * (wave.freq + (mouseXRatio * 0.002)) + (Date.now() * wave.speed * 0.05)) * dynamicAmp;
+                    
+                    if (x === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        resize();
+        animate();
+    </script>
+</body>
+</html>
