@@ -520,8 +520,12 @@
                 </div>
             </div>
             <div class="input-area">
-                <span id="placeholderText">Add your notes...</span>
-                <input type="file" id="fileInput" hidden accept="image/*">
+            <span id="placeholderText">Add your notes...</span>
+            <input type="file" id="fileInput" hidden accept="image/*">
+            <select id="speedSelect" style="border:none; background:transparent; color:var(--primary); font-weight:bold; cursor:pointer; outline:none; margin-left:10px;">
+            <option value="Normal">Speed: Normal</option>
+            <option value="Slow">Speed: Slow</option>
+            </select>
             </div>
             <button class="upload-btn" id="uploadBtn">Upload</button>
         </div>
@@ -711,86 +715,93 @@
         }
 
         // Upload Button Flow
-        uploadBtn.addEventListener('click', async () => {
-            if (!fileInput.files[0]) return alert("Please select a file first!");
+uploadBtn.addEventListener('click', async () => {
+    if (!fileInput.files[0]) return alert("Please select a file first!");
 
-            // Prepare UI
-            uploadBtn.textContent = "Processing...";
-            studioSection.style.display = 'flex';
-            loader.style.display = 'block';
-            audioPlayerUI.style.display = 'none';
-            studioSection.scrollIntoView({ behavior: 'smooth' });
+    // 1. Prepare UI
+    uploadBtn.textContent = "Processing...";
+    studioSection.style.display = 'flex';
+    loader.style.display = 'block';
+    audioPlayerUI.style.display = 'none';
+    studioSection.scrollIntoView({ behavior: 'smooth' });
 
-            const formData = new FormData();
-            formData.append('noteImage', fileInput.files[0]);
+    // 2. Prepare Data (Including Speed)
+    const formData = new FormData();
+    formData.append('noteImage', fileInput.files[0]);
+    
+    // Ensure you have an element with id="speedSelect" in your HTML
+    const speedSelectElement = document.getElementById('speedSelect');
+    const selectedSpeed = speedSelectElement ? speedSelectElement.value : "Normal";
+    formData.append('speed', selectedSpeed); 
 
-            try {
-                // Fetch from Backend
-                const response = await fetch('http://localhost:3000/process-notes', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) throw new Error("Server communication failed.");
-
-                const data = await response.json();
-
-                // Update UI
-                loader.style.display = 'none';
-                audioPlayerUI.style.display = 'block';
-                transcriptionText.innerText = data.text;
-                uploadBtn.textContent = "Success!";
-                
-                // Show Quiz Section
-                document.getElementById('quizSection').style.display = 'flex';
-
-                // Setup Audio
-                const audio = new Audio(data.audioUrl);
-                let isPlaying = false;
-
-                masterPlayBtn.onclick = () => {
-                    if (audio.paused) {
-                        audio.play();
-                        masterPlayBtn.textContent = '⏸';
-                        isPlaying = true;
-                        updateVisuals();
-                    } else {
-                        audio.pause();
-                        masterPlayBtn.textContent = '▶';
-                        isPlaying = false;
-                    }
-                };
-
-                function updateVisuals() {
-                    if (!isPlaying) return;
-                    
-                    const progress = (audio.currentTime / audio.duration) * 100;
-                    audioProgress.style.width = progress + '%';
-
-                    const bars = document.querySelectorAll('.v-bar');
-                    const activeIndex = Math.floor((progress / 100) * bars.length);
-                    
-                    bars.forEach((bar, index) => {
-                        if (index <= activeIndex) {
-                            bar.classList.add('active');
-                            bar.style.height = Math.random() * 80 + 20 + '%';
-                        }
-                    });
-
-                    if (progress < 100) requestAnimationFrame(updateVisuals);
-                    else {
-                        masterPlayBtn.textContent = '▶';
-                        isPlaying = false;
-                    }
-                }
-
-            } catch (err) {
-                console.error(err);
-                alert("Processing failed. Make sure your server is running.");
-                uploadBtn.textContent = "Upload Failed";
-                loader.style.display = 'none';
-            }
+    try {
+        // 3. Single Fetch Call to Backend
+        const response = await fetch('http://localhost:3000/process-notes', {
+            method: 'POST',
+            body: formData
         });
+
+        if (!response.ok) throw new Error("Server communication failed.");
+
+        const data = await response.json();
+
+        // 4. Update UI with Results
+        loader.style.display = 'none';
+        audioPlayerUI.style.display = 'block';
+        transcriptionText.innerText = data.text;
+        uploadBtn.textContent = "Success!";
+        
+        // Show Quiz Section
+        document.getElementById('quizSection').style.display = 'flex';
+
+        // 5. Setup Audio and Visuals
+        const audio = new Audio(data.audioUrl);
+        let isPlaying = false;
+
+        masterPlayBtn.onclick = () => {
+            if (audio.paused) {
+                audio.play();
+                masterPlayBtn.textContent = '⏸';
+                isPlaying = true;
+                updateVisuals();
+            } else {
+                audio.pause();
+                masterPlayBtn.textContent = '▶';
+                isPlaying = false;
+            }
+        };
+
+        function updateVisuals() {
+            if (!isPlaying) return;
+            
+            const progress = (audio.currentTime / audio.duration) * 100;
+            audioProgress.style.width = progress + '%';
+
+            const bars = document.querySelectorAll('.v-bar');
+            const activeIndex = Math.floor((progress / 100) * bars.length);
+            
+            bars.forEach((bar, index) => {
+                if (index <= activeIndex) {
+                    bar.classList.add('active');
+                    bar.style.height = (Math.random() * 80 + 20) + '%';
+                }
+            });
+
+            if (progress < 100) {
+                requestAnimationFrame(updateVisuals);
+            } else {
+                masterPlayBtn.textContent = '▶';
+                isPlaying = false;
+            }
+        }
+
+    } catch (err) {
+        console.error(err);
+        alert("Processing failed. Make sure your server is running.");
+        uploadBtn.textContent = "Upload Failed";
+        loader.style.display = 'none';
+    }
+});
 
         // Speed Control
         const speedToggleBtn = document.getElementById('speedToggleBtn');
