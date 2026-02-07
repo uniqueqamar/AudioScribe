@@ -3,6 +3,7 @@ import os
 import re
 from PIL import Image, ImageEnhance, ImageFilter
 import pytesseract
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 from gtts import gTTS
 # Import your cleaning logic if it's in a separate file
 # from clean_text import clean_ocr_text
