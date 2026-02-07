@@ -52,7 +52,8 @@ app.post('/process-notes', upload.single('noteImage'), (req, res) => {
     
     // CHANGE: Use the path to your 'env' if 'python' doesn't work
     // const pythonPath = path.join(__dirname, 'env', 'Scripts', 'python.exe');
-    const pythonProcess = spawn('python', ['processor.py', filePath]);
+    // Example Node.js snippet
+const pythonProcess = spawn('python', ['text_audio.py', req.file.path, req.body.speed]);
 
     let resultString = "";
 
