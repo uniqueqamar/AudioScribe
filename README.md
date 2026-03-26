@@ -54,27 +54,3 @@ Then open **http://localhost:3000** in your browser.
 
 ---
 
-## Project structure (clean)
-
-```
-AudioScribe/
-├── index.html      ← Frontend (served by Node)
-├── server.js       ← Express backend
-├── processor.py    ← OCR + TTS logic
-├── package.json    ← Node deps
-└── uploads/        ← Auto-created; stores images & MP3s
-```
-
-### Files removed (were junk/duplicates)
-
-| File | Reason removed |
-|------|----------------|
-| `Frontend.html` | Old draft |
-| `Frontend1.html` | Old draft |
-| `Finalfrontend.html` | Replaced by `index.html` |
-| `45.py` | Unnamed scratch file |
-| `ocr_test.py` | Dev test only |
-| `clean_text.py` | Logic merged into `processor.py` |
-| `text_audio.py` | Logic merged into `processor.py` |
-| `handwriting copy.jpg` | Sample file, not needed in production |
-| `handwriting_text.txt` | Sample file |
