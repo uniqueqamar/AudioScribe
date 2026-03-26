@@ -1,87 +1,97 @@
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const multer = require("multer");
+const cors = require("cors");
+const path = require("path");
+const { spawn } = require("child_process");
+const fs = require("fs");
+
 const app = express();
+const PORT = 3000;
+
+// ── Middleware ──────────────────────────────────────────────
 app.use(cors());
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-// const tesseract = require('node-tesseract-ocr'); // Optional: for local OCR
+app.use(express.json());
 
-app.use(express.json()); // Allows server to read JSON bodies
+// Serve the frontend HTML
+app.use(express.static(__dirname));
 
-const upload = multer({ dest: 'uploads/' });
+// Serve generated audio files
+app.use("/audio", express.static(path.join(__dirname, "uploads")));
 
-// --- THE NEW LOGIC ---
-
-// 1. OCR ROUTE: Reads the uploaded image
-const { spawn } = require('child_process');
-
-app.post('/process-notes', upload.single('noteImage'), (req, res) => {
-    if (!req.file) return res.status(400).send('No file.');
-
-    const filePath = req.file.path;
-
-    // Run the Python script
-    let outputData = "";
-    const pythonProcess = spawn('python', ['processor.py', filePath]);
-
-    pythonProcess.stdout.on('data', (data) => {
-        const output = data.toString().trim();
-        const [text, audioFile] = output.split('|');
-
-        res.json({
-            text: text,
-            audioUrl: `http://localhost:3000/download/${path.basename(audioFile)}`
-        });
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-        console.error(`Python Error: ${data}`);
-        res.status(500).json({ error: "Processing failed" });
-    });
+// ── Multer: save uploaded images to /uploads ────────────────
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, "uploads")),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
+  },
 });
 
-// Allow the frontend to download the generated MP3
-app.use('/download', express.static('uploads'));
-
-// 2. QUIZ ROUTE: Generates 3 MCQs from text
-app.post('/process-notes', upload.single('noteImage'), (req, res) => {
-    if (!req.file) return res.status(400).send('No file.');
-
-    const filePath = path.resolve(req.file.path);
-    
-    // CHANGE: Use the path to your 'env' if 'python' doesn't work
-    // const pythonPath = path.join(__dirname, 'env', 'Scripts', 'python.exe');
-    // Example Node.js snippet
-const pythonProcess = spawn('python', ['text_audio.py', req.file.path, req.body.speed]);
-
-    let resultString = "";
-
-    pythonProcess.stdout.on('data', (data) => {
-        resultString += data.toString();
-    });
-
-    pythonProcess.on('close', (code) => {
-        if (code !== 0) return res.status(500).json({ error: "Python failed" });
-
-        const parts = resultString.trim().split('|');
-        if (parts.length < 2) return res.status(500).json({ error: "Invalid Python output" });
-
-        res.json({
-            text: parts[0],
-            audioUrl: `http://localhost:3000/download/${path.basename(parts[1])}`
-        });
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-        console.error(`Python Error: ${data}`);
-    });
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files are allowed"), false);
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
-// 3. AUDIO ROUTE: (Simulation of TTS)
-app.post('/generate-audio', (req, res) => {
-    // In production, you'd use Google Text-to-Speech API here
-    res.json({ audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' });
+// ── POST /process-notes ─────────────────────────────────────
+app.post("/process-notes", upload.single("noteImage"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No image uploaded." });
+  }
+
+  const imagePath = req.file.path;
+  const speed = req.body.speed || "Normal";
+
+  // Detect python command
+  const pythonCmd = process.platform === "win32" ? "python" : "python3";
+
+  const py = spawn(pythonCmd, [
+    path.join(__dirname, "processor.py"),
+    imagePath,
+    speed,
+  ]);
+
+  let stdout = "";
+  let stderr = "";
+
+  py.stdout.on("data", (d) => (stdout += d.toString()));
+  py.stderr.on("data", (d) => (stderr += d.toString()));
+
+  py.on("close", (code) => {
+    if (code !== 0) {
+      console.error("Python error:", stderr);
+      return res.status(500).json({
+        error: "Processing failed.",
+        detail: stderr,
+      });
+    }
+
+    // processor.py prints:  extracted_text|audio_file_path
+    const parts = stdout.trim().split("|");
+    if (parts.length < 2) {
+      return res.status(500).json({ error: "Unexpected output from processor." });
+    }
+
+    const text = parts[0];
+    const audioAbsPath = parts[1];
+    const audioFilename = path.basename(audioAbsPath);
+
+    res.json({
+      text,
+      audioUrl: `http://localhost:${PORT}/audio/${audioFilename}`,
+    });
+  });
 });
 
-app.listen(3000, () => console.log('Backend running on http://localhost:3000'));
+// ── Catch-all: serve index.html ─────────────────────────────
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+app.listen(PORT, () => {
+  console.log(`\n✅  AudioScribe server running at http://localhost:${PORT}`);
+  console.log(`   Open http://localhost:${PORT} in your browser.\n`);
+});
